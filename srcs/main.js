@@ -1,9 +1,23 @@
 // srcs/main.js
 
-import TextareaEditorView from "./TextareaEditorView.js";
+import EditorPresenter from "./app/EditorPresenter.js";
+import EditorDocument from "./domain/EditorDocument.js";
+import LocalDocumentStorage from "./storage/LocalDocumentStorage.js";
+import TextareaEditorView from "./ui/TextareaEditorView.js";
+
+const DEFAULT_TEXT = "Hello, circular gap buffer!\n\nTry typing here.";
 
 const textarea = document.querySelector("#editor");
-const status = document.querySelector("#status");
-const debug = document.querySelector("#debug");
+const statusElement = document.querySelector("#status");
+const debugElement = document.querySelector("#debug");
 
-new TextareaEditorView(textarea, status, debug);
+const storage = new LocalDocumentStorage();
+const documentModel = new EditorDocument(storage.loadText() ?? DEFAULT_TEXT);
+const view = new TextareaEditorView({ textarea, statusElement, debugElement });
+const presenter = new EditorPresenter({
+  document: documentModel,
+  view,
+  storage
+});
+
+presenter.start();
