@@ -1,4 +1,5 @@
-// src/main.js
+// srcs/main.js
+
 import TextareaEditorView from "./TextareaEditorView.js";
 
 const textarea = document.querySelector("#editor");

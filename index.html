@@ -3,19 +3,22 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>GapBuffer Texteditor</title>
+        <title>Circular Gap Buffer Text Editor</title>
         <link rel="stylesheet" href="./styles/textarea.css">
+        <link rel="stylesheet" href="./styles/status.css">
         <script type="module" src="./srcs/main.js" defer></script>
         
 </head>
 <body>
   <main class="app">
     <header>
-      <h1>Gap Buffer Text Editor</h1>
-      <div class="status" id="status"></div>
+      <h1>Circular Gap Buffer Text Editor</h1>
+      
     </header>
 
     <textarea id="editor" spellcheck="true" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    
+    <div class="status" id="status"></div>
 
     <section class="debug">
       <h2>Debug</h2>

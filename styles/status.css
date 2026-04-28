@@ -1,0 +1,14 @@
+.status {
+  list-style-type: none;
+  margin: 0;
+  padding: 10px 10px;
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.75rem;
+  color: white;
+  background-color: purple;
+  align-items: center;
+  display: flex;
+  font-weight: bold;
+}

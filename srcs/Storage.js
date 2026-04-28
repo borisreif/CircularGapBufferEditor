@@ -1,5 +1,7 @@
+// srcs/Storage.js
+
 export default class Storage {
-  constructor(key = "gap-buffer-document") {
+  constructor(key = "circular-gap-buffer-document") {
     this.key = key;
   }
 
@@ -8,7 +10,7 @@ export default class Storage {
   }
 
   load() {
-    return localStorage.getItem(this.key) ?? "";
+    return localStorage.getItem(this.key);
   }
 
   clear() {
