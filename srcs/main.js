@@ -13,7 +13,13 @@ const debugElement = document.querySelector("#debug");
 
 const storage = new LocalDocumentStorage();
 const documentModel = new EditorDocument(storage.loadText() ?? DEFAULT_TEXT);
-const view = new TextareaEditorView({ textarea, statusElement, debugElement });
+// const view = new TextareaEditorView({ textarea, statusElement, debugElement });
+const view = new TextareaEditorView({
+  textarea: document.querySelector("#editor"),
+  lineNumbersElement: document.querySelector("#line-numbers"),
+  statusElement: document.querySelector("#status"),
+  debugElement: document.querySelector("#debug")
+});
 const presenter = new EditorPresenter({
   document: documentModel,
   view,

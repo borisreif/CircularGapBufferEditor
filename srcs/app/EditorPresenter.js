@@ -168,6 +168,7 @@ export default class EditorPresenter {
     const text = this.document.getText();
     const safeSelection = TextSelection.from(selection).clamp(text.length);
 
+    this.view.showLineNumbers?.(this.document.getLineCount());
     this.view.setText(text);
     this.view.setSelection(safeSelection.start, safeSelection.end);
     this.renderStatus(safeSelection, message);

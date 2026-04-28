@@ -32,6 +32,7 @@ export default class TextareaEditorView {
       throw new Error("TextareaEditorView requires textarea, statusElement, and debugElement.");
     }
 
+    this.lineNumbersElement = elements.lineNumbersElement ?? null;
     this.textarea = elements.textarea;
     this.statusElement = elements.statusElement;
     this.debugElement = elements.debugElement;
@@ -156,6 +157,22 @@ export default class TextareaEditorView {
     this.textarea.addEventListener("paste", event => {
       event.preventDefault();
       callback(event.clipboardData?.getData("text/plain") ?? "");
+    });
+  }
+
+  showLineNumbers(lineCount) {
+    if (!this.lineNumbersElement) return;
+    
+    this.lineNumbersElement.textContent = Array
+    .from({ length: lineCount }, (_, index) => String(index + 1))
+    .join("\n");
+  }
+
+  bindLineNumberScroll() {
+    if (!this.lineNumbersElement) return;
+    
+    this.textarea.addEventListener("scroll", () => {
+      this.lineNumbersElement.scrollTop = this.textarea.scrollTop;
     });
   }
 }

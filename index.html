@@ -4,6 +4,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Circular Gap Buffer Text Editor</title>
+        <link rel="stylesheet" href="./styles/editorframe.css">
         <link rel="stylesheet" href="./styles/textarea.css">
         <link rel="stylesheet" href="./styles/status.css">
         <script type="module" src="./srcs/main.js" defer></script>
@@ -15,9 +16,18 @@
       <h1>Circular Gap Buffer Text Editor</h1>
       
     </header>
-
-    <textarea id="editor" spellcheck="true" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
-    
+    <div class="editor-frame">
+      <pre class="line-numbers" id="line-numbers" aria-hidden="true">1</pre>
+      <textarea 
+        id="editor" 
+        spellcheck="true" 
+        autocomplete="off" 
+        autocorrect="off" 
+        autocapitalize="off" 
+        cols=80 rows=20 
+        wrap="off">
+      </textarea>
+    </div>
     <div class="status" id="status"></div>
 
     <section class="debug">
