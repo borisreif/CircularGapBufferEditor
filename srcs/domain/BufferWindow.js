@@ -216,7 +216,7 @@ export default class BufferWindow {
 
   /** @returns {string} Text in the current window only. */
   getText() {
-    return this.#buffer.toString().slice(this.getWindowStart(), this.getWindowEnd());
+    return this.#buffer.slice(this.getWindowStart(), this.getWindowEnd());
   }
 
   /** @returns {string} Text in the current window only. */
