@@ -274,6 +274,43 @@ export default class BufferWindow {
     return this.#size;
   }
 
+
+  /**
+   * Sets the exact global source range exposed by this window.
+   *
+   * Unlike `moveWindowTo()` plus `resizeWindow()`, this method is allowed to
+   * create an empty window at the end of the source text. That is useful for
+   * higher-level code that wants to expose an exact range, for example an empty
+   * final logical line.
+   *
+   * The range is linear and clamped to the source bounds; it never wraps around
+   * the underlying circular buffer.
+   *
+   * @param {number} globalStart - Global source offset, inclusive.
+   * @param {number} globalEnd - Global source offset, exclusive.
+   * @returns {BufferWindow} This instance.
+   */
+  setWindowRange(globalStart, globalEnd) {
+    const sourceLength = this.getSourceLength();
+    const safeStart = BufferWindow.#clamp(
+      BufferWindow.#toInteger(globalStart),
+      0,
+      sourceLength
+    );
+    const safeEnd = BufferWindow.#clamp(
+      BufferWindow.#toInteger(globalEnd),
+      safeStart,
+      sourceLength
+    );
+
+    this.#start = safeStart;
+    this.#size = safeEnd - safeStart;
+    this.#cursor = this.#clampLocalOffset(this.#cursor);
+    this.#syncSourceCursor();
+
+    return this;
+  }
+
   /**
    * Moves the window to a global source offset. The cursor remains local and is
    * clamped if the new window is shorter.

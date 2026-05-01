@@ -1,17 +1,19 @@
 // srcs/main.js
 
 import EditorPresenter from "./app/EditorPresenter.js";
+import { DEFAULT_EDITOR_CONFIG } from "./config/EditorConfig.js";
 import EditorDocument from "./domain/EditorDocument.js";
+import EditorViewport from "./domain/EditorViewport.js";
 import LocalDocumentStorage from "./storage/LocalDocumentStorage.js";
 import TextareaEditorView from "./ui/TextareaEditorView.js";
 
 const DEFAULT_TEXT = "Hello, circular gap buffer!\n\nTry typing here.";
-const DEFAULT_WINDOW_SIZE = 4000;
 
 const storage = new LocalDocumentStorage();
 const documentModel = new EditorDocument(storage.loadText() ?? DEFAULT_TEXT, {
-  windowSize: DEFAULT_WINDOW_SIZE
+  windowSize: DEFAULT_EDITOR_CONFIG.viewport.charactersPerWindow
 });
+const viewport = new EditorViewport(documentModel, DEFAULT_EDITOR_CONFIG.viewport);
 
 const view = new TextareaEditorView({
   textarea: document.querySelector("#editor"),
@@ -26,8 +28,10 @@ const view = new TextareaEditorView({
 
 const presenter = new EditorPresenter({
   document: documentModel,
+  viewport,
   view,
-  storage
+  storage,
+  tabText: DEFAULT_EDITOR_CONFIG.indentation.tabText
 });
 
 presenter.start();

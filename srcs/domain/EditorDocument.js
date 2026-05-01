@@ -2,7 +2,7 @@
 
 import BufferWindow from "./BufferWindow.js";
 
-const DEFAULT_WINDOW_SIZE = 4000;
+const DEFAULT_WINDOW_SIZE = 2000;
 
 /**
  * EditorDocument is the editor-shaped model above BufferWindow.
@@ -10,16 +10,23 @@ const DEFAULT_WINDOW_SIZE = 4000;
  * Responsibilities:
  *
  * - Own the `BufferWindow`.
- * - Expose document/editor vocabulary to the presenter.
+ * - Expose document/editor vocabulary to the presenter and viewport.
  * - Keep the circular gap buffer hidden behind BufferWindow.
- * - Provide stats, line counts, and debug information.
+ * - Provide line/offset helpers for editor-specific windowing policies.
+ * - Provide stats and compact debug information.
+ *
+ * Layering:
+ *
+ *   CircularGapBuffer  generic full text storage
+ *   BufferWindow       generic offset window over that storage
+ *   EditorDocument     editor/document semantics: lines, words, stats
  *
  * Important distinction:
  *
  * - `getText()` / `getFullText()` return the full document text.
  * - `getVisibleText()` returns only the current window text shown in the textarea.
- * - Cursor and selection methods currently use visible/window-local offsets,
- *   because the textarea also uses local offsets.
+ * - Cursor and selection methods use visible/window-local offsets, because the
+ *   textarea also uses local offsets.
  */
 export default class EditorDocument {
   #window;
@@ -54,6 +61,11 @@ export default class EditorDocument {
 
   getLength() {
     return this.#window.getSourceLength();
+  }
+
+  /** Alias used by EditorViewport to make the distinction explicit. */
+  getFullLength() {
+    return this.getLength();
   }
 
   isEmpty() {
@@ -145,21 +157,34 @@ export default class EditorDocument {
   }
 
   /**
-   * Moves the visible window one full window-size step backward.
+   * Sets the exact visible source range by global offsets.
    *
-   * This is character-offset based, not line based. The window clamps at the
-   * beginning of the document, so this method is safe to call repeatedly.
+   * This is the method used by line-window mode. BufferWindow remains generic
+   * and offset-based; EditorDocument decides which offsets correspond to lines.
+   *
+   * @param {number} startOffset - Global source offset, inclusive.
+   * @param {number} endOffset - Global source offset, exclusive.
+   * @returns {EditorDocument} This instance.
    */
+  setWindowRange(startOffset, endOffset) {
+    const length = this.getLength();
+    const safeStart = EditorDocument.#offset(startOffset, length);
+    const safeEnd = EditorDocument.#offset(endOffset, length);
+
+    this.#window.setWindowRange(
+      Math.min(safeStart, safeEnd),
+      Math.max(safeStart, safeEnd)
+    );
+
+    return this;
+  }
+
+  /** Moves the visible window one full character-window-size step backward. */
   moveToPreviousWindow() {
     return this.moveWindowBy(-this.getWindowSize());
   }
 
-  /**
-   * Moves the visible window one full window-size step forward.
-   *
-   * This is character-offset based, not line based. The window clamps at the
-   * end of the document, so this method is safe to call repeatedly.
-   */
+  /** Moves the visible window one full character-window-size step forward. */
   moveToNextWindow() {
     return this.moveWindowBy(this.getWindowSize());
   }
@@ -169,7 +194,7 @@ export default class EditorDocument {
     return this.moveWindowTo(0);
   }
 
-  /** Moves the visible window to the final full window of the document. */
+  /** Moves the visible window to the final full character window of the document. */
   moveToDocumentEnd() {
     return this.moveWindowTo(this.getLength());
   }
@@ -212,6 +237,79 @@ export default class EditorDocument {
   }
 
   // -------------------------------------------------------------------------
+  // Line and offset API
+  // -------------------------------------------------------------------------
+
+  getLineCount() {
+    return this.#getDocumentMetrics().lines;
+  }
+
+  /**
+   * Returns the one-based logical line number containing a global offset.
+   *
+   * A logical line is text between hard `\n` characters. Soft wrapping in the
+   * textarea is deliberately ignored here.
+   */
+  getLineNumberAtOffset(offset) {
+    return this.#lineNumberAtOffset(offset);
+  }
+
+  /** Returns the global offset where a one-based logical line starts. */
+  getLineStartOffset(lineNumber) {
+    const { lineStarts } = this.#getDocumentMetrics();
+    const index = this.#lineIndex(lineNumber);
+    return lineStarts[index];
+  }
+
+  /**
+   * Returns the global offset where a logical line ends.
+   *
+   * By default the returned offset excludes the line-break character. This makes
+   * a range of N logical lines contain exactly N logical lines when displayed in
+   * the textarea, instead of adding an extra empty line after the final `\n`.
+   */
+  getLineEndOffset(lineNumber, { includeLineBreak = false } = {}) {
+    const { lineStarts, length } = this.#getDocumentMetrics();
+    const index = this.#lineIndex(lineNumber);
+    const nextStart = lineStarts[index + 1];
+
+    if (nextStart === undefined) {
+      return length;
+    }
+
+    return includeLineBreak ? nextStart : Math.max(lineStarts[index], nextStart - 1);
+  }
+
+  /**
+   * Returns the global offset range containing `lineCount` logical lines.
+   *
+   * Line numbers are one-based. The returned `endOffset` excludes the final
+   * selected line's line-break character so the visible line count remains stable.
+   */
+  getOffsetRangeForLines(startLine, lineCount) {
+    const totalLines = this.getLineCount();
+    const count = Math.max(1, EditorDocument.#toInteger(lineCount));
+    const safeStartLine = EditorDocument.#clamp(
+      EditorDocument.#toInteger(startLine),
+      1,
+      totalLines
+    );
+    const endLine = Math.min(totalLines, safeStartLine + count - 1);
+
+    return {
+      startLine: safeStartLine,
+      endLine,
+      lineCount: endLine - safeStartLine + 1,
+      startOffset: this.getLineStartOffset(safeStartLine),
+      endOffset: this.getLineEndOffset(endLine)
+    };
+  }
+
+  getVisibleStartLine() {
+    return this.#lineNumberAtOffset(this.#window.getWindowStart());
+  }
+
+  // -------------------------------------------------------------------------
   // Document statistics
   // -------------------------------------------------------------------------
 
@@ -223,16 +321,8 @@ export default class EditorDocument {
     return EditorDocument.#countWords(visibleText);
   }
 
-  getLineCount() {
-    return this.#getDocumentMetrics().lines;
-  }
-
   getVisibleLineCount(visibleText = this.getVisibleText()) {
     return EditorDocument.#countLines(visibleText);
-  }
-
-  getVisibleStartLine() {
-    return this.#lineNumberAtOffset(this.#window.getWindowStart());
   }
 
   getStats({ visibleText = null } = {}) {
@@ -310,6 +400,10 @@ export default class EditorDocument {
     return this.#window.validate();
   }
 
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
+
   #invalidateDocumentMetrics() {
     this.#documentMetrics = null;
   }
@@ -360,9 +454,14 @@ export default class EditorDocument {
     return best + 1;
   }
 
-  // -------------------------------------------------------------------------
-  // Private helpers
-  // -------------------------------------------------------------------------
+  #lineIndex(lineNumber) {
+    const { lineStarts } = this.#getDocumentMetrics();
+    return EditorDocument.#clamp(
+      EditorDocument.#toInteger(lineNumber) - 1,
+      0,
+      lineStarts.length - 1
+    );
+  }
 
   static #countWords(text) {
     const trimmed = text.trim();
@@ -378,7 +477,16 @@ export default class EditorDocument {
       throw new TypeError("EditorDocument offset must be a finite number.");
     }
 
-    return Math.max(0, Math.min(Math.trunc(value), max));
+    return EditorDocument.#clamp(Math.trunc(value), 0, max);
+  }
+
+  static #toInteger(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.trunc(number) : 0;
+  }
+
+  static #clamp(value, min, max) {
+    return Math.max(min, Math.min(value, max));
   }
 
   static #assertString(value, name) {

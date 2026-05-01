@@ -57,3 +57,37 @@ test("EditorDocument clamps the final window at the end of the document", () => 
   assert.equal(document.canMoveToNextWindow(), false);
   assert.equal(document.canMoveToPreviousWindow(), true);
 });
+
+test("EditorDocument maps logical lines to exact offset ranges", () => {
+  const document = new EditorDocument("one\ntwo\nthree\nfour", { windowSize: 4 });
+
+  assert.deepEqual(document.getOffsetRangeForLines(2, 2), {
+    startLine: 2,
+    endLine: 3,
+    lineCount: 2,
+    startOffset: 4,
+    endOffset: 13
+  });
+
+  document.setWindowRange(4, 13);
+  assert.equal(document.getVisibleText(), "two\nthree");
+  assert.equal(document.getVisibleLineCount(), 2);
+});
+
+test("EditorDocument can expose an empty final logical line", () => {
+  const document = new EditorDocument("one\n", { windowSize: 4 });
+  const range = document.getOffsetRangeForLines(2, 1);
+
+  assert.deepEqual(range, {
+    startLine: 2,
+    endLine: 2,
+    lineCount: 1,
+    startOffset: 4,
+    endOffset: 4
+  });
+
+  document.setWindowRange(range.startOffset, range.endOffset);
+  assert.equal(document.getVisibleText(), "");
+  assert.equal(document.getWindowStart(), 4);
+  assert.equal(document.getWindowEnd(), 4);
+});

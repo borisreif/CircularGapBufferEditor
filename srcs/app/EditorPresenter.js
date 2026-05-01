@@ -25,9 +25,10 @@ export default class EditorPresenter {
   #document;
   #view;
   #storage;
+  #viewport;
   #tabText;
 
-  constructor({ document, view, storage, tabText = DEFAULT_TAB_TEXT }) {
+  constructor({ document, view, storage, viewport = null, tabText = DEFAULT_TAB_TEXT }) {
     if (!document || !view || !storage) {
       throw new Error("EditorPresenter requires document, view, and storage.");
     }
@@ -35,11 +36,14 @@ export default class EditorPresenter {
     this.#document = document;
     this.#view = view;
     this.#storage = storage;
+    this.#viewport = viewport;
     this.#tabText = tabText;
   }
 
   start() {
     this.#bindViewEvents();
+    this.#viewport?.apply();
+    this.#document.moveCursor(0);
     this.render(TextSelection.collapsed(this.#document.getCursor()));
     this.#view.focus();
   }
@@ -60,7 +64,8 @@ export default class EditorPresenter {
    * document is currently exposed through the textarea.
    */
   moveToPreviousWindow() {
-    this.#document.moveToPreviousWindow();
+    this.#viewport?.previousWindow() ?? this.#document.moveToPreviousWindow();
+    this.#document.moveCursor(0);
     this.render(TextSelection.collapsed(0), "Previous window");
   }
 
@@ -68,19 +73,22 @@ export default class EditorPresenter {
    * Moves the visible text window one page forward and re-renders the textarea.
    */
   moveToNextWindow() {
-    this.#document.moveToNextWindow();
+    this.#viewport?.nextWindow() ?? this.#document.moveToNextWindow();
+    this.#document.moveCursor(0);
     this.render(TextSelection.collapsed(0), "Next window");
   }
 
   /** Moves the visible text window to the beginning of the document. */
   moveToDocumentStart() {
-    this.#document.moveToDocumentStart();
+    this.#viewport?.firstWindow() ?? this.#document.moveToDocumentStart();
+    this.#document.moveCursor(0);
     this.render(TextSelection.collapsed(0), "Start of document");
   }
 
   /** Moves the visible text window to the final window of the document. */
   moveToDocumentEnd() {
-    this.#document.moveToDocumentEnd();
+    this.#viewport?.lastWindow() ?? this.#document.moveToDocumentEnd();
+    this.#document.moveCursor(0);
     this.render(TextSelection.collapsed(0), "End of document");
   }
 
@@ -169,6 +177,7 @@ export default class EditorPresenter {
       replacement
     );
 
+    this.#viewport?.refresh();
     this.render(TextSelection.collapsed(result.localCursor));
   }
 
@@ -180,6 +189,7 @@ export default class EditorPresenter {
     }
 
     const result = this.#document.deleteRange(selection.start, selection.end);
+    this.#viewport?.refresh();
     this.render(TextSelection.collapsed(result.localCursor));
     return true;
   }
@@ -196,11 +206,13 @@ export default class EditorPresenter {
     if (cursor > 0) {
       const start = previousGraphemeBoundary(visibleText, cursor);
       const result = this.#document.deleteRange(start, cursor);
+      this.#viewport?.refresh();
       this.render(TextSelection.collapsed(result.localCursor));
       return;
     }
 
     const result = this.#document.backspace();
+    this.#viewport?.refresh();
     this.render(TextSelection.collapsed(result.localCursor));
   }
 
@@ -216,11 +228,13 @@ export default class EditorPresenter {
     if (cursor < visibleText.length) {
       const end = nextGraphemeBoundary(visibleText, cursor);
       const result = this.#document.deleteRange(cursor, end);
+      this.#viewport?.refresh();
       this.render(TextSelection.collapsed(result.localCursor));
       return;
     }
 
     const result = this.#document.deleteForward();
+    this.#viewport?.refresh();
     this.render(TextSelection.collapsed(result.localCursor));
   }
 
@@ -240,6 +254,7 @@ export default class EditorPresenter {
       .clamp(this.#view.getText().length);
 
     this.#document.setVisibleText(this.#view.getText());
+    this.#viewport?.refresh();
     this.#document.moveCursor(selection.end);
     this.render(selection);
   }
