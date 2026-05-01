@@ -16,11 +16,21 @@
       <h1>Circular Gap Buffer Text Editor</h1>
       
     </header>
+
+    <nav class="window-controls" aria-label="Text window navigation">
+      <button id="first-window" type="button" title="Alt+Home">⏮ Start</button>
+      <button id="previous-window" type="button" title="Alt+ArrowLeft or Alt+PageUp">← Previous window</button>
+      <button id="next-window" type="button" title="Alt+ArrowRight or Alt+PageDown">Next window →</button>
+      <button id="last-window" type="button" title="Alt+End">End ⏭</button>
+      <span class="window-controls__hint">Keyboard: Alt+← / Alt+→, Alt+Home / Alt+End</span>
+    </nav>
+
     <div class="editor-frame">
       <pre class="line-numbers" id="line-numbers" aria-hidden="true">1</pre>
       <textarea 
         id="editor" 
         spellcheck="true" 
+        lang="en"
         autocomplete="off" 
         autocorrect="off" 
         autocapitalize="off" 

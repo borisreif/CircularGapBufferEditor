@@ -16,32 +16,100 @@ const DEFAULT_TAB_TEXT = "  ";
  * The presenter owns editor behavior: it interprets user intent, mutates the
  * document, updates the view, and triggers persistence. It deliberately does
  * not know about CircularGapBuffer internals or concrete DOM element details.
+ *
+ * In the windowed design the textarea selection is local to the visible window.
+ * The presenter therefore uses EditorDocument's visible/window APIs when editing
+ * and uses the full-text API only for persistence.
  */
 export default class EditorPresenter {
+  #document;
+  #view;
+  #storage;
+  #tabText;
+
   constructor({ document, view, storage, tabText = DEFAULT_TAB_TEXT }) {
     if (!document || !view || !storage) {
       throw new Error("EditorPresenter requires document, view, and storage.");
     }
 
-    this.document = document;
-    this.view = view;
-    this.storage = storage;
-    this.tabText = tabText;
+    this.#document = document;
+    this.#view = view;
+    this.#storage = storage;
+    this.#tabText = tabText;
   }
 
   start() {
     this.#bindViewEvents();
-    this.render(TextSelection.collapsed(this.document.getCursor()));
-    this.view.focus();
+    this.render(TextSelection.collapsed(this.#document.getCursor()));
+    this.#view.focus();
   }
 
   save() {
-    this.storage.saveText(this.document.getText());
-    this.render(this.view.getSelection(), "Saved");
+    this.#storage.saveText(this.#document.getFullText());
+    this.render(this.#view.getSelection(), "Saved");
   }
 
   persist() {
-    this.storage.saveText(this.document.getText());
+    this.#storage.saveText(this.#document.getFullText());
+  }
+
+  /**
+   * Moves the visible text window one page backward and re-renders the textarea.
+   *
+   * This does not change the document text. It only changes which slice of the
+   * document is currently exposed through the textarea.
+   */
+  moveToPreviousWindow() {
+    this.#document.moveToPreviousWindow();
+    this.render(TextSelection.collapsed(0), "Previous window");
+  }
+
+  /**
+   * Moves the visible text window one page forward and re-renders the textarea.
+   */
+  moveToNextWindow() {
+    this.#document.moveToNextWindow();
+    this.render(TextSelection.collapsed(0), "Next window");
+  }
+
+  /** Moves the visible text window to the beginning of the document. */
+  moveToDocumentStart() {
+    this.#document.moveToDocumentStart();
+    this.render(TextSelection.collapsed(0), "Start of document");
+  }
+
+  /** Moves the visible text window to the final window of the document. */
+  moveToDocumentEnd() {
+    this.#document.moveToDocumentEnd();
+    this.render(TextSelection.collapsed(0), "End of document");
+  }
+
+  /**
+   * Dispatches window navigation commands reported by the view.
+   *
+   * @param {"previous"|"next"|"first"|"last"} action
+   */
+  handleWindowNavigation(action) {
+    switch (action) {
+      case "previous":
+        this.moveToPreviousWindow();
+        break;
+
+      case "next":
+        this.moveToNextWindow();
+        break;
+
+      case "first":
+        this.moveToDocumentStart();
+        break;
+
+      case "last":
+        this.moveToDocumentEnd();
+        break;
+
+      default:
+        throw new Error(`Unknown window navigation action: ${action}`);
+    }
   }
 
   handleBeforeInput(input) {
@@ -59,11 +127,12 @@ export default class EditorPresenter {
       case "insertParagraph":
         input.preventDefault();
         this.replaceSelection("\n");
+        this.persist();
         break;
 
       case "insertTab":
         input.preventDefault();
-        this.replaceSelection(this.tabText);
+        this.replaceSelection(this.#tabText);
         break;
 
       case "deleteContentBackward":
@@ -84,7 +153,8 @@ export default class EditorPresenter {
 
       default:
         // Native operations such as undo/redo are allowed to happen in the
-        // view. The input event will then rebuild the document from view text.
+        // view. The input event will then rebuild the visible document window
+        // from the textarea's current text.
         break;
     }
   }
@@ -93,8 +163,13 @@ export default class EditorPresenter {
     const replacement = String(text);
     const selection = this.#currentSelection();
 
-    this.document.replaceRange(selection.start, selection.end, replacement);
-    this.render(TextSelection.collapsed(selection.start + replacement.length));
+    const result = this.#document.replaceVisibleRange(
+      selection.start,
+      selection.end,
+      replacement
+    );
+
+    this.render(TextSelection.collapsed(result.localCursor));
   }
 
   deleteSelection() {
@@ -104,8 +179,8 @@ export default class EditorPresenter {
       return false;
     }
 
-    this.document.deleteRange(selection.start, selection.end);
-    this.render(selection.collapseToStart());
+    const result = this.#document.deleteRange(selection.start, selection.end);
+    this.render(TextSelection.collapsed(result.localCursor));
     return true;
   }
 
@@ -116,16 +191,17 @@ export default class EditorPresenter {
 
     const selection = this.#currentSelection();
     const cursor = selection.start;
-    const text = this.document.getText();
-    const start = previousGraphemeBoundary(text, cursor);
+    const visibleText = this.#document.getVisibleText();
 
-    if (start === cursor) {
-      this.render(selection);
+    if (cursor > 0) {
+      const start = previousGraphemeBoundary(visibleText, cursor);
+      const result = this.#document.deleteRange(start, cursor);
+      this.render(TextSelection.collapsed(result.localCursor));
       return;
     }
 
-    this.document.deleteRange(start, cursor);
-    this.render(TextSelection.collapsed(start));
+    const result = this.#document.backspace();
+    this.render(TextSelection.collapsed(result.localCursor));
   }
 
   deleteForward() {
@@ -135,72 +211,86 @@ export default class EditorPresenter {
 
     const selection = this.#currentSelection();
     const cursor = selection.start;
-    const text = this.document.getText();
-    const end = nextGraphemeBoundary(text, cursor);
+    const visibleText = this.#document.getVisibleText();
 
-    if (end === cursor) {
-      this.render(selection);
+    if (cursor < visibleText.length) {
+      const end = nextGraphemeBoundary(visibleText, cursor);
+      const result = this.#document.deleteRange(cursor, end);
+      this.render(TextSelection.collapsed(result.localCursor));
       return;
     }
 
-    this.document.deleteRange(cursor, end);
-    this.render(TextSelection.collapsed(cursor));
+    const result = this.#document.deleteForward();
+    this.render(TextSelection.collapsed(result.localCursor));
   }
 
   syncCursorFromView() {
     const selection = this.#currentSelection();
-    this.document.moveCursor(selection.end);
-    this.renderStatus(selection);
-    this.renderDebug();
+    this.#document.moveCursor(selection.end);
+
+    // Cursor movement can fire very frequently while the user navigates with
+    // arrow keys. Updating the compact status is useful; rebuilding the debug
+    // panel on every cursor movement is unnecessarily expensive for large files.
+    this.renderStatus(selection, "", this.#view.getText());
   }
 
   rebuildDocumentFromView() {
     const selection = TextSelection
-      .from(this.view.getSelection())
-      .clamp(this.view.getText().length);
+      .from(this.#view.getSelection())
+      .clamp(this.#view.getText().length);
 
-    this.document.setText(this.view.getText());
-    this.document.moveCursor(selection.end);
+    this.#document.setVisibleText(this.#view.getText());
+    this.#document.moveCursor(selection.end);
     this.render(selection);
   }
 
-  render(selection = this.view.getSelection(), message = "") {
-    const text = this.document.getText();
-    const safeSelection = TextSelection.from(selection).clamp(text.length);
+  render(selection = this.#view.getSelection(), message = "") {
+    const visibleText = this.#document.getVisibleText();
+    const safeSelection = TextSelection.from(selection).clamp(visibleText.length);
 
-    this.view.showLineNumbers?.(this.document.getLineCount());
-    this.view.setText(text);
-    this.view.setSelection(safeSelection.start, safeSelection.end);
-    this.renderStatus(safeSelection, message);
-    this.renderDebug();
+    this.#view.showLineNumbers?.(
+      this.#document.getVisibleLineCount(visibleText),
+      this.#document.getVisibleStartLine()
+    );
+    this.#view.setWindowNavigationState?.({
+      canMovePrevious: this.#document.canMoveToPreviousWindow(),
+      canMoveNext: this.#document.canMoveToNextWindow()
+    });
+    this.#view.setText(visibleText);
+    this.#view.setSelection(safeSelection.start, safeSelection.end);
+    this.renderStatus(safeSelection, message, visibleText);
+    this.renderDebug(visibleText);
   }
 
-  renderStatus(selection = this.view.getSelection(), message = "") {
-    this.view.showStatus(formatEditorStatus({
+  renderStatus(selection = this.#view.getSelection(), message = "", visibleText = null) {
+    this.#view.showStatus(formatEditorStatus({
       selection,
-      stats: this.document.getStats(),
+      stats: this.#document.getStats({ visibleText }),
       message
     }));
   }
 
-  renderDebug() {
-    this.view.showDebug(formatDebugState(this.document.debugState()));
+  renderDebug(visibleText = null) {
+    this.#view.showDebug(formatDebugState(
+      this.#document.debugState({ visibleText })
+    ));
   }
 
   #bindViewEvents() {
-    this.view.onBeforeUnload(() => this.persist());
-    this.view.onSave(() => this.save());
-    this.view.onTab(() => this.replaceSelection(this.tabText));
-    this.view.onBeforeInput(input => this.handleBeforeInput(input));
-    this.view.onNativeInput(() => this.rebuildDocumentFromView());
-    this.view.onSelectionChange(() => this.syncCursorFromView());
-    this.view.onPaste(text => this.replaceSelection(text));
+    this.#view.onBeforeUnload(() => this.persist());
+    this.#view.onSave(() => this.save());
+    this.#view.onTab(() => this.replaceSelection(this.#tabText));
+    this.#view.onBeforeInput(input => this.handleBeforeInput(input));
+    this.#view.onNativeInput(() => this.rebuildDocumentFromView());
+    this.#view.onSelectionChange(() => this.syncCursorFromView());
+    this.#view.onPaste(text => this.replaceSelection(text));
+    this.#view.onWindowNavigation?.(action => this.handleWindowNavigation(action));
   }
 
   #currentSelection() {
     return TextSelection
-      .from(this.view.getSelection())
+      .from(this.#view.getSelection())
       .normalize()
-      .clamp(this.document.getLength());
+      .clamp(this.#document.getVisibleLength());
   }
 }

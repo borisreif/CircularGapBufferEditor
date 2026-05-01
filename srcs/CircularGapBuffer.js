@@ -2,6 +2,7 @@
  * Mutable circular gap buffer data structure.
  * 
  * @author Boris A. Reif
+ * @version 0.2
  *
  * Background information:
  * 
@@ -145,6 +146,8 @@
  * - capacity
  * - isEmpty
  * - toString()
+ * - slice(start, end)
+ * - charAt(index)
  * - moveCursor(position)
  * - insert(text)
  * - backspace()
@@ -152,7 +155,7 @@
  * - deleteRange(start, end)
  * - clear()
  * - setText(text)
- * - charAt(index)
+ * 
  * 
  * Serialization API:
  * - toSerializable()
@@ -335,6 +338,53 @@ export default class CircularGapBuffer {
     this.#length = 0;
   }
 
+  /**
+   * Normalizes a slice boundary using String.prototype.slice-style rules.
+   *
+   * This helper is used only by slice(start, end). Unlike #clampPosition(),
+   * it deliberately supports negative indexes:
+   *
+   *     -1 means "one code unit before the end"
+   *     -5 means "five code units before the end"
+   *
+   * Example with logical text "abcdef":
+   *
+   *     #normalizeSliceIndex( 2) -> 2
+   *     #normalizeSliceIndex(-2) -> 4
+   *     #normalizeSliceIndex(99) -> 6
+   *
+   * The returned value is always a valid logical boundary in [0, length].
+   *
+   * @param {number|undefined} index - Slice boundary to normalize.
+   * @throws {TypeError} If index is not a valid number.
+   * @returns {number} Normalized logical slice boundary.
+   */
+  #normalizeSliceIndex(index) {
+    if (index === undefined) {
+      return this.#length;
+    }
+
+    if (typeof index !== "number" || Number.isNaN(index)) {
+      throw new TypeError("Slice index must be a valid number.");
+    }
+
+    if (index === Infinity) {
+      return this.#length;
+    }
+
+    if (index === -Infinity) {
+      return 0;
+    }
+
+    const integer = Math.trunc(index);
+
+    if (integer < 0) {
+      return Math.max(this.#length + integer, 0);
+    }
+
+    return Math.min(integer, this.#length);
+  }
+
   // ----------------------------
   // Public API
   // ----------------------------
@@ -404,13 +454,121 @@ export default class CircularGapBuffer {
    * @returns {string} The text stored in the buffer.
    */
   toString() {
-    const chars = new Array(this.#length);
+    return this.slice(0, this.#length);
+  }
 
-    for (let i = 0; i < this.#length; i++) {
-      chars[i] = this.#buffer[this.#physicalIndex(i)];
+  /**
+   * Returns a logical substring of the buffer.
+   *
+   * This method behaves like String.prototype.slice(): start is inclusive,
+   * end is exclusive, and negative indexes are measured from the end of the
+   * logical text.
+   *
+   * It reads only the requested logical range instead of materializing the
+   * entire buffer first. This is useful for editor windows, previews, and
+   * other callers that need just part of a large text.
+   *
+   * Example:
+   *
+   *   Logical text:
+   *
+   *     "abcdef"
+   *
+   *   slice(1, 4):
+   *
+   *     "bcd"
+   *
+   * With a circular physical layout, the requested logical range may cross
+   * the physical end of the array:
+   *
+   *   Logical text:
+   *
+   *     a b c d e f
+   *
+   *   Logical slice:
+   *
+   *       [ b c d e )
+   *
+   *   One possible physical ring:
+   *
+   *       0   1   2   3   4   5   6   7
+   *     +---+---+---+---+---+---+---+---+
+   *     | d | e | f |   |   | a | b | c |
+   *     +---+---+---+---+---+---+---+---+
+   *
+   *   Physical read order for slice(1, 5):
+   *
+   *     6 -> 7 -> 0 -> 1
+   *
+   *   Returned string:
+   *
+   *     "bcde"
+   *
+   * The circular layout remains private. Callers always use logical text
+   * offsets.
+   *
+   * @param {number} [start=0] - Inclusive logical start boundary.
+   * @param {number} [end=this.length] - Exclusive logical end boundary.
+   * @throws {TypeError} If start or end is not a valid number.
+   * @returns {string} The requested logical text range.
+   */
+  slice(start = 0, end = this.#length) {
+    const safeStart = this.#normalizeSliceIndex(start);
+    const safeEnd = this.#normalizeSliceIndex(end);
+
+    if (safeEnd <= safeStart) {
+      return "";
+    }
+
+    const chars = new Array(safeEnd - safeStart);
+
+    for (
+      let logicalIndex = safeStart, resultIndex = 0;
+      logicalIndex < safeEnd;
+      logicalIndex++, resultIndex++
+    ) {
+      chars[resultIndex] = this.#buffer[this.#physicalIndex(logicalIndex)];
     }
 
     return chars.join("");
+  }
+
+  /**
+   * Returns the character at the given logical text index.
+   *
+   * Numeric positions outside the valid range are clamped. If the final
+   * position is equal to the text length, an empty string is returned.
+   *
+   * Example:
+   *
+   *     logical text:     a b c d e f
+   *     logical indexes:  0 1 2 3 4 5
+   *
+   *     charAt(4) -> "e"
+   *
+   * Even if the physical layout is wrapped:
+   *
+   *       0   1   2   3   4   5   6   7
+   *     +---+---+---+---+---+---+---+---+
+   *     | d | e | f |   |   | a | b | c |
+   *     +---+---+---+---+---+---+---+---+
+   *
+   *     logical index 4 maps to physical index 1.
+   *
+   * Note:
+   * This is slightly different from String.prototype.charAt(): negative
+   * indexes are clamped to 0 instead of returning "".
+   *
+   * @param {number} index - Logical text index.
+   * @throws {TypeError} If index is not a valid number.
+   * @returns {string} Character at the index, or an empty string at the end.
+   */
+  charAt(index) {
+    const safeIndex = this.#clampPosition(index);
+
+    if (safeIndex === this.#length) return "";
+
+    return this.#buffer[this.#physicalIndex(safeIndex)];
   }
 
   /**
@@ -720,44 +878,6 @@ export default class CircularGapBuffer {
     this.#length = 0;
 
     return this.insert(text);
-  }
-
-  /**
-   * Returns the character at the given logical text index.
-   *
-   * Numeric positions outside the valid range are clamped. If the final
-   * position is equal to the text length, an empty string is returned.
-   *
-   * Example:
-   *
-   *     logical text:     a b c d e f
-   *     logical indexes:  0 1 2 3 4 5
-   *
-   *     charAt(4) -> "e"
-   *
-   * Even if the physical layout is wrapped:
-   *
-   *       0   1   2   3   4   5   6   7
-   *     +---+---+---+---+---+---+---+---+
-   *     | d | e | f |   |   | a | b | c |
-   *     +---+---+---+---+---+---+---+---+
-   *
-   *     logical index 4 maps to physical index 1.
-   *
-   * Note:
-   * This is slightly different from String.prototype.charAt(): negative
-   * indexes are clamped to 0 instead of returning "".
-   *
-   * @param {number} index - Logical text index.
-   * @throws {TypeError} If index is not a valid number.
-   * @returns {string} Character at the index, or an empty string at the end.
-   */
-  charAt(index) {
-    const safeIndex = this.#clampPosition(index);
-
-    if (safeIndex === this.#length) return "";
-
-    return this.#buffer[this.#physicalIndex(safeIndex)];
   }
 
   /**

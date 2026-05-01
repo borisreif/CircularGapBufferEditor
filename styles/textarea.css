@@ -33,6 +33,44 @@ h1 {
     font-size: 1.5rem;
 }
 
+.window-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid #d4d4d8;
+    border-radius: 0.75rem;
+    background: white;
+}
+
+.window-controls button {
+    border: 1px solid #d4d4d8;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.7rem;
+    background: #fafafa;
+    color: #18181b;
+    font: inherit;
+    cursor: pointer;
+}
+
+.window-controls button:hover:not(:disabled),
+.window-controls button:focus-visible:not(:disabled) {
+    border-color: #71717a;
+    background: #f4f4f5;
+}
+
+.window-controls button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.window-controls__hint {
+    color: #71717a;
+    font-size: 0.875rem;
+}
+
+
 .status {
     font-size: 0.875rem;
     color: #52525b;

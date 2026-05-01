@@ -6,20 +6,24 @@ import LocalDocumentStorage from "./storage/LocalDocumentStorage.js";
 import TextareaEditorView from "./ui/TextareaEditorView.js";
 
 const DEFAULT_TEXT = "Hello, circular gap buffer!\n\nTry typing here.";
-
-const textarea = document.querySelector("#editor");
-const statusElement = document.querySelector("#status");
-const debugElement = document.querySelector("#debug");
+const DEFAULT_WINDOW_SIZE = 4000;
 
 const storage = new LocalDocumentStorage();
-const documentModel = new EditorDocument(storage.loadText() ?? DEFAULT_TEXT);
-// const view = new TextareaEditorView({ textarea, statusElement, debugElement });
+const documentModel = new EditorDocument(storage.loadText() ?? DEFAULT_TEXT, {
+  windowSize: DEFAULT_WINDOW_SIZE
+});
+
 const view = new TextareaEditorView({
   textarea: document.querySelector("#editor"),
   lineNumbersElement: document.querySelector("#line-numbers"),
   statusElement: document.querySelector("#status"),
-  debugElement: document.querySelector("#debug")
+  debugElement: document.querySelector("#debug"),
+  firstWindowButton: document.querySelector("#first-window"),
+  previousWindowButton: document.querySelector("#previous-window"),
+  nextWindowButton: document.querySelector("#next-window"),
+  lastWindowButton: document.querySelector("#last-window")
 });
+
 const presenter = new EditorPresenter({
   document: documentModel,
   view,
