@@ -134,12 +134,17 @@ export default class EditorViewport {
   }
 
   getInfo() {
+    const startOffset = this.#document.getWindowStart();
+    const endOffset = this.#document.getWindowEnd();
+    const endLineOffset = endOffset > startOffset ? endOffset - 1 : endOffset;
+
     return {
       mode: this.#mode,
-      startLine: this.#startLine,
+      startLine: this.#document.getLineNumberAtOffset(startOffset),
+      endLine: this.#document.getLineNumberAtOffset(endLineOffset),
       linesPerWindow: this.#linesPerWindow,
-      startOffset: this.#document.getWindowStart(),
-      endOffset: this.#document.getWindowEnd(),
+      startOffset,
+      endOffset,
       charactersPerWindow: this.#charactersPerWindow
     };
   }

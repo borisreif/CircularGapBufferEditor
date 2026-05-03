@@ -1,31 +1,32 @@
 // srcs/app/EditorStatus.js
 
-import TextSelection from "../domain/TextSelection.js";
-
 /**
- * Formats the small status/footer line shown below the editor.
+ * Builds the card-style footer view-model from editor state.
  *
- * `selection` is local to the currently visible text window. `stats` also
- * contains global/full-document values so the user can see where the window sits
- * inside the full document.
+ * The presenter gathers the raw data from EditorDocument and EditorViewport.
+ * This module only formats that data into short strings. TextareaEditorView then
+ * copies those strings into the footer DOM nodes.
  */
-export function formatEditorStatus({ selection, stats, message = "" }) {
-  const currentSelection = TextSelection.from(selection).normalize();
-  const localLocation = currentSelection.isCollapsed
-    ? `Cursor: ${currentSelection.start}`
-    : `Selection: ${currentSelection.start}–${currentSelection.end}`;
+export function formatEditorStatus({ cursor, viewport, stats, message = "" }) {
+  const mode = viewport?.mode === "characters" ? "Characters" : "Lines";
+  const saveState = message || "Ready";
 
-  const base = [
-    localLocation,
-    `Global cursor: ${stats.globalCursor}`,
-    `Window: ${stats.windowStart}–${stats.windowEnd}`,
-    `Visible: ${stats.visibleLength} chars, ${stats.visibleLines} lines`,
-    `Document: ${stats.length} chars, ${stats.words} words, ${stats.lines} lines`
-  ];
+  return {
+    cursorGlobal: `Global ${cursor.globalLine}:${cursor.globalColumn}`,
+    cursorLocal: `Local ${cursor.localLine}:${cursor.localColumn}`,
+    windowLines: `Lines ${formatNumber(viewport.startLine)}–${formatNumber(viewport.endLine)}`,
+    windowChars: `Chars ${formatNumber(viewport.startOffset)}–${formatNumber(viewport.endOffset)}`,
+    documentLines: `${formatNumber(stats.lines)} ${plural(stats.lines, "line")}`,
+    documentSize: `${formatNumber(stats.length)} chars · ${formatNumber(stats.words)} ${plural(stats.words, "word")}`,
+    mode,
+    save: saveState
+  };
+}
 
-  if (message) {
-    base.push(message);
-  }
+function formatNumber(value) {
+  return Number(value ?? 0).toLocaleString();
+}
 
-  return base.join(" | ");
+function plural(value, singular) {
+  return Number(value) === 1 ? singular : `${singular}s`;
 }

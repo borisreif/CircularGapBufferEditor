@@ -17,8 +17,17 @@ const viewport = new EditorViewport(documentModel, DEFAULT_EDITOR_CONFIG.viewpor
 
 const view = new TextareaEditorView({
   textarea: document.querySelector("#editor"),
-  lineNumbersElement: document.querySelector("#line-numbers"),
-  statusElement: document.querySelector("#status"),
+  statusElement: document.querySelector("#status-bar"),
+  statusElements: {
+    cursorGlobal: document.querySelector("#status-cursor-global"),
+    cursorLocal: document.querySelector("#status-cursor-local"),
+    windowLines: document.querySelector("#status-window-lines"),
+    windowChars: document.querySelector("#status-window-chars"),
+    documentLines: document.querySelector("#status-document-lines"),
+    documentSize: document.querySelector("#status-document-size"),
+    mode: document.querySelector("#status-mode"),
+    save: document.querySelector("#status-save")
+  },
   debugElement: document.querySelector("#debug"),
   firstWindowButton: document.querySelector("#first-window"),
   previousWindowButton: document.querySelector("#previous-window"),

@@ -263,10 +263,6 @@ export default class EditorPresenter {
     const visibleText = this.#document.getVisibleText();
     const safeSelection = TextSelection.from(selection).clamp(visibleText.length);
 
-    this.#view.showLineNumbers?.(
-      this.#document.getVisibleLineCount(visibleText),
-      this.#document.getVisibleStartLine()
-    );
     this.#view.setWindowNavigationState?.({
       canMovePrevious: this.#document.canMoveToPreviousWindow(),
       canMoveNext: this.#document.canMoveToNextWindow()
@@ -278,9 +274,18 @@ export default class EditorPresenter {
   }
 
   renderStatus(selection = this.#view.getSelection(), message = "", visibleText = null) {
+    const currentVisibleText = visibleText ?? this.#document.getVisibleText();
+    const safeSelection = TextSelection
+      .from(selection)
+      .normalize()
+      .clamp(currentVisibleText.length);
+
     this.#view.showStatus(formatEditorStatus({
-      selection,
-      stats: this.#document.getStats({ visibleText }),
+      cursor: this.#document.getCursorInfo(safeSelection.end, {
+        visibleText: currentVisibleText
+      }),
+      viewport: this.#getViewportInfo(),
+      stats: this.#document.getStats({ visibleText: currentVisibleText }),
       message
     }));
   }
@@ -289,6 +294,22 @@ export default class EditorPresenter {
     this.#view.showDebug(formatDebugState(
       this.#document.debugState({ visibleText })
     ));
+  }
+
+  #getViewportInfo() {
+    if (this.#viewport) {
+      return this.#viewport.getInfo();
+    }
+
+    const stats = this.#document.getStats();
+
+    return {
+      mode: "characters",
+      startLine: stats.visibleStartLine,
+      endLine: stats.visibleEndLine,
+      startOffset: stats.windowStart,
+      endOffset: stats.windowEnd
+    };
   }
 
   #bindViewEvents() {

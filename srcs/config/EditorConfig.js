@@ -20,6 +20,6 @@ export const DEFAULT_EDITOR_CONFIG = Object.freeze({
 
   display: Object.freeze({
     showDebug: true,
-    showLineNumbers: true
+    showLineNumbers: false
   })
 });

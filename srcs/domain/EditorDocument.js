@@ -340,12 +340,52 @@ export default class EditorDocument {
       visibleWords: this.getVisibleWordCount(currentVisibleText),
       visibleLines: this.getVisibleLineCount(currentVisibleText),
       visibleStartLine: this.getVisibleStartLine(),
+      visibleEndLine: this.getVisibleEndLine(),
       windowStart: window.windowStart,
       windowEnd: window.windowEnd,
       windowSize: window.windowSize,
       canMovePreviousWindow: this.canMoveToPreviousWindow(),
       canMoveNextWindow: this.canMoveToNextWindow()
     };
+  }
+
+  /**
+   * Returns cursor position information for a textarea-local cursor offset.
+   *
+   * The textarea only displays the current BufferWindow, so the supplied offset
+   * is local to the visible text. This method maps it to a global document
+   * offset and reports both local and global logical line/column positions.
+   */
+  getCursorInfo(localOffset = this.getCursor(), { visibleText = null } = {}) {
+    const currentVisibleText = visibleText ?? this.getVisibleText();
+    const safeLocalOffset = EditorDocument.#offset(
+      localOffset,
+      currentVisibleText.length
+    );
+    const globalOffset = this.localToGlobal(safeLocalOffset);
+    const local = EditorDocument.#lineColumnInText(
+      currentVisibleText,
+      safeLocalOffset
+    );
+    const globalLine = this.getLineNumberAtOffset(globalOffset);
+    const globalLineStart = this.getLineStartOffset(globalLine);
+
+    return {
+      globalLine,
+      globalColumn: globalOffset - globalLineStart + 1,
+      localLine: local.line,
+      localColumn: local.column,
+      globalOffset,
+      localOffset: safeLocalOffset
+    };
+  }
+
+  /** Returns the global logical line number at the end of the visible window. */
+  getVisibleEndLine() {
+    const start = this.getWindowStart();
+    const end = this.getWindowEnd();
+    const offset = end > start ? end - 1 : end;
+    return this.#lineNumberAtOffset(offset);
   }
 
   // -------------------------------------------------------------------------
@@ -470,6 +510,21 @@ export default class EditorDocument {
 
   static #countLines(text) {
     return text === "" ? 1 : text.split("\n").length;
+  }
+
+  static #lineColumnInText(text, offset) {
+    const safeOffset = EditorDocument.#clamp(
+      EditorDocument.#toInteger(offset),
+      0,
+      text.length
+    );
+    const beforeCursor = text.slice(0, safeOffset);
+    const lastLineBreak = beforeCursor.lastIndexOf("\n");
+
+    return {
+      line: EditorDocument.#countLines(beforeCursor),
+      column: safeOffset - lastLineBreak
+    };
   }
 
   static #offset(value, max) {

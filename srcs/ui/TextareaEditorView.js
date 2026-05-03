@@ -22,6 +22,7 @@ export default class TextareaEditorView {
   #textarea;
   #lineNumbersElement;
   #statusElement;
+  #statusElements;
   #debugElement;
   #windowButtons;
   #isComposing = false;
@@ -54,6 +55,7 @@ export default class TextareaEditorView {
     this.#textarea = elements.textarea;
     this.#lineNumbersElement = elements.lineNumbersElement ?? null;
     this.#statusElement = elements.statusElement;
+    this.#statusElements = elements.statusElements ?? null;
     this.#debugElement = elements.debugElement;
     this.#windowButtons = {
       first: elements.firstWindowButton ?? null,
@@ -96,8 +98,27 @@ export default class TextareaEditorView {
     this.#textarea.focus();
   }
 
-  showStatus(text) {
-    this.#statusElement.textContent = text;
+  /**
+   * Renders either the old one-line status string or the newer structured
+   * status view-model used by the card-style footer.
+   *
+   * The view does not calculate editor state. It only copies already-formatted
+   * strings into DOM nodes supplied by main.js.
+   */
+  showStatus(status) {
+    if (typeof status === "string" || !this.#statusElements) {
+      this.#statusElement.textContent = String(status);
+      return;
+    }
+
+    TextareaEditorView.#setText(this.#statusElements.cursorGlobal, status.cursorGlobal);
+    TextareaEditorView.#setText(this.#statusElements.cursorLocal, status.cursorLocal);
+    TextareaEditorView.#setText(this.#statusElements.windowLines, status.windowLines);
+    TextareaEditorView.#setText(this.#statusElements.windowChars, status.windowChars);
+    TextareaEditorView.#setText(this.#statusElements.documentLines, status.documentLines);
+    TextareaEditorView.#setText(this.#statusElements.documentSize, status.documentSize);
+    TextareaEditorView.#setText(this.#statusElements.mode, status.mode);
+    TextareaEditorView.#setText(this.#statusElements.save, status.save);
   }
 
   showDebug(text) {
@@ -274,6 +295,12 @@ export default class TextareaEditorView {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  static #setText(element, text) {
+    if (element) {
+      element.textContent = text ?? "";
+    }
+  }
 
   static #windowNavigationActionForKey(key) {
     switch (key) {
