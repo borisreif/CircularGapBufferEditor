@@ -331,19 +331,12 @@ export default class EditorDocument {
     const currentVisibleText = visibleText ?? this.getVisibleText();
 
     return {
-      // Keep the original short names for existing tests and debug output.
       length: metrics.length,
       words: metrics.words,
       lines: metrics.lines,
-
-      // More explicit names used by the structured footer. The file size is an
-      // estimate based on character count so status rendering does not need to
-      // materialize and UTF-8 encode the full document.
       characterCount: metrics.length,
       wordCount: metrics.words,
       lineCount: metrics.lines,
-      estimatedFileSizeBytes: metrics.length,
-
       cursor: this.getCursor(),
       globalCursor: this.getGlobalCursor(),
       visibleLength: this.getVisibleLength(),

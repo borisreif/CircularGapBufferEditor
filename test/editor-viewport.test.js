@@ -45,3 +45,29 @@ test("EditorViewport character mode still moves by character windows", () => {
   viewport.lastWindow();
   assert.equal(document.getVisibleText(), "vwxyz");
 });
+
+test("EditorViewport.refresh preserves cursor when line-window start shifts", () => {
+  const document = new EditorDocument("one\ntwo\nthree\nfour", { windowSize: 8 });
+  const viewport = new EditorViewport(document, {
+    mode: "lines",
+    linesPerWindow: 2,
+    charactersPerWindow: 8
+  });
+
+  viewport.apply();
+  viewport.nextWindow();
+  assert.equal(document.getVisibleText(), "three\nfour");
+
+  document.moveCursor(0);
+  assert.equal(document.getGlobalCursor(), 8);
+
+  document.backspace(); // delete the hidden newline before "three"
+  assert.equal(document.getFullText(), "one\ntwothree\nfour");
+  assert.equal(document.getGlobalCursor(), 7);
+
+  viewport.refresh();
+
+  assert.equal(document.getVisibleText(), "twothree\nfour");
+  assert.equal(document.getGlobalCursor(), 7);
+  assert.equal(document.getCursor(), 3);
+});

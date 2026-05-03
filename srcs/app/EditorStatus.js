@@ -16,11 +16,8 @@ export function formatEditorStatus({ cursor, viewport, stats, message = "" }) {
     cursorLocal: `Local ${cursor.localLine}:${cursor.localColumn}`,
     windowLines: `Lines ${formatNumber(viewport.startLine)}–${formatNumber(viewport.endLine)}`,
     windowChars: `Chars ${formatNumber(viewport.startOffset)}–${formatNumber(viewport.endOffset)}`,
-    //documentLines: `${formatNumber(stats.lines)} ${plural(stats.lines, "line")}`,
-    //documentSize: `${formatNumber(stats.length)} chars · ${formatNumber(stats.words)} ${plural(stats.words, "word")}`,
-    documentLines: `${formatNumber(stats.lineCount)} lines · ${formatNumber(stats.wordCount)} words`,
-    //documentSize: `${formatNumber(stats.characterCount)} chars · ${formatNumber(stats.wordCount)} words · ${formatBytes(stats.fileSizeBytes)}`,
-    documentSize: `${formatNumber(stats.characterCount)} chars · ~${formatBytes(stats.estimatedFileSizeBytes)}`,
+    documentLines: `${formatNumber(stats.lineCount)} ${plural(stats.lineCount, "line")} · ${formatNumber(stats.wordCount)} ${plural(stats.wordCount, "word")}`,
+    documentSize: `${formatNumber(stats.characterCount)} chars · ~${formatBytes(stats.characterCount)}`,
     mode,
     save: saveState
   };

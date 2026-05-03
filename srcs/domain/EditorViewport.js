@@ -50,13 +50,31 @@ export default class EditorViewport {
     return this;
   }
 
-  /** Reapplies the current policy after text changed. */
+  /**
+   * Reapplies the current policy after text changed.
+   *
+   * Edits may change line starts or window boundaries. Reapplying the viewport
+   * can therefore move the underlying BufferWindow. When that happens, the
+   * BufferWindow's local cursor would otherwise be interpreted relative to the
+   * new window start and the global cursor could jump.
+   *
+   * To avoid that, refresh preserves the current global cursor: it adjusts the
+   * viewport so the cursor remains visible, reapplies the window policy, and
+   * finally maps the preserved global cursor back into the refreshed window.
+   */
   refresh() {
-    if (this.#mode === "characters") {
-      this.#startOffset = this.#document.getWindowStart();
+    const globalCursor = this.#document.getGlobalCursor();
+
+    if (this.#mode === "lines") {
+      this.#ensureLineVisible(this.#document.getLineNumberAtOffset(globalCursor));
+    } else {
+      this.#ensureOffsetVisible(globalCursor);
     }
 
-    return this.apply();
+    this.apply();
+    this.#document.moveCursor(this.#document.globalToLocal(globalCursor));
+
+    return this;
   }
 
   nextWindow() {
@@ -147,6 +165,32 @@ export default class EditorViewport {
       endOffset,
       charactersPerWindow: this.#charactersPerWindow
     };
+  }
+
+  #ensureLineVisible(lineNumber) {
+    if (lineNumber < this.#startLine) {
+      this.#startLine = lineNumber;
+      return;
+    }
+
+    const endLine = this.#startLine + this.#linesPerWindow - 1;
+
+    if (lineNumber > endLine) {
+      this.#startLine = Math.max(1, lineNumber - this.#linesPerWindow + 1);
+    }
+  }
+
+  #ensureOffsetVisible(offset) {
+    if (offset < this.#startOffset) {
+      this.#startOffset = offset;
+      return;
+    }
+
+    const endOffset = this.#startOffset + this.#charactersPerWindow;
+
+    if (offset > endOffset) {
+      this.#startOffset = Math.max(0, offset - this.#charactersPerWindow);
+    }
   }
 
   #applyCharacterWindow() {

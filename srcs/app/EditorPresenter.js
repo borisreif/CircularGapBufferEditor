@@ -88,8 +88,10 @@ export default class EditorPresenter {
   /** Moves the visible text window to the final window of the document. */
   moveToDocumentEnd() {
     this.#viewport?.lastWindow() ?? this.#document.moveToDocumentEnd();
-    this.#document.moveCursor(0);
-    this.render(TextSelection.collapsed(0), "End of document");
+
+    const endOfVisibleWindow = this.#document.getVisibleLength();
+    this.#document.moveCursor(endOfVisibleWindow);
+    this.render(TextSelection.collapsed(endOfVisibleWindow), "End of document");
   }
 
   /**
@@ -178,7 +180,7 @@ export default class EditorPresenter {
     );
 
     this.#viewport?.refresh();
-    this.render(TextSelection.collapsed(result.localCursor));
+    this.render(TextSelection.collapsed(this.#document.getCursor()));
   }
 
   deleteSelection() {
@@ -190,7 +192,7 @@ export default class EditorPresenter {
 
     const result = this.#document.deleteRange(selection.start, selection.end);
     this.#viewport?.refresh();
-    this.render(TextSelection.collapsed(result.localCursor));
+    this.render(TextSelection.collapsed(this.#document.getCursor()));
     return true;
   }
 
@@ -203,17 +205,25 @@ export default class EditorPresenter {
     const cursor = selection.start;
     const visibleText = this.#document.getVisibleText();
 
+    // Keep the model cursor synchronized with the textarea cursor before
+    // using cursor-relative document methods. This is especially important at
+    // window edges, where backspace()/deleteForward() intentionally operate
+    // outside the visible text window. Selection-change events can be missed or
+    // delayed by the browser, so deletion commands must not rely on stale model
+    // cursor state.
+    this.#document.moveCursor(cursor);
+
     if (cursor > 0) {
       const start = previousGraphemeBoundary(visibleText, cursor);
       const result = this.#document.deleteRange(start, cursor);
       this.#viewport?.refresh();
-      this.render(TextSelection.collapsed(result.localCursor));
+      this.render(TextSelection.collapsed(this.#document.getCursor()));
       return;
     }
 
     const result = this.#document.backspace();
     this.#viewport?.refresh();
-    this.render(TextSelection.collapsed(result.localCursor));
+    this.render(TextSelection.collapsed(this.#document.getCursor()));
   }
 
   deleteForward() {
@@ -225,17 +235,21 @@ export default class EditorPresenter {
     const cursor = selection.start;
     const visibleText = this.#document.getVisibleText();
 
+    // See deleteBackward(): edge deletion uses the document cursor, so sync it
+    // from the textarea selection immediately before the operation.
+    this.#document.moveCursor(cursor);
+
     if (cursor < visibleText.length) {
       const end = nextGraphemeBoundary(visibleText, cursor);
       const result = this.#document.deleteRange(cursor, end);
       this.#viewport?.refresh();
-      this.render(TextSelection.collapsed(result.localCursor));
+      this.render(TextSelection.collapsed(this.#document.getCursor()));
       return;
     }
 
     const result = this.#document.deleteForward();
     this.#viewport?.refresh();
-    this.render(TextSelection.collapsed(result.localCursor));
+    this.render(TextSelection.collapsed(this.#document.getCursor()));
   }
 
   syncCursorFromView() {
