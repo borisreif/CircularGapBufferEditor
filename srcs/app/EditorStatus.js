@@ -16,8 +16,11 @@ export function formatEditorStatus({ cursor, viewport, stats, message = "" }) {
     cursorLocal: `Local ${cursor.localLine}:${cursor.localColumn}`,
     windowLines: `Lines ${formatNumber(viewport.startLine)}–${formatNumber(viewport.endLine)}`,
     windowChars: `Chars ${formatNumber(viewport.startOffset)}–${formatNumber(viewport.endOffset)}`,
-    documentLines: `${formatNumber(stats.lines)} ${plural(stats.lines, "line")}`,
-    documentSize: `${formatNumber(stats.length)} chars · ${formatNumber(stats.words)} ${plural(stats.words, "word")}`,
+    //documentLines: `${formatNumber(stats.lines)} ${plural(stats.lines, "line")}`,
+    //documentSize: `${formatNumber(stats.length)} chars · ${formatNumber(stats.words)} ${plural(stats.words, "word")}`,
+    documentLines: `${formatNumber(stats.lineCount)} lines · ${formatNumber(stats.wordCount)} words`,
+    //documentSize: `${formatNumber(stats.characterCount)} chars · ${formatNumber(stats.wordCount)} words · ${formatBytes(stats.fileSizeBytes)}`,
+    documentSize: `${formatNumber(stats.characterCount)} chars · ~${formatBytes(stats.estimatedFileSizeBytes)}`,
     mode,
     save: saveState
   };
@@ -29,4 +32,19 @@ function formatNumber(value) {
 
 function plural(value, singular) {
   return Number(value) === 1 ? singular : `${singular}s`;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`;
 }
